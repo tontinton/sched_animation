@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      overflow-y: hidden;
+    }
+    #app {
+      width: 100vw;
+      height: 100vh;
+      background: #242631;
+    }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script>
+    const loadScript = src => new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+
+    const waitForDocumentLoad = () => new Promise(resolve => {
+      document.addEventListener("DOMContentLoaded", resolve);
+    });
+
+    Promise.all([
+      loadScript("https://pixijs.download/release/pixi.min.js"),
+      loadScript("index.js"),
+      waitForDocumentLoad(),
+    ]).then(() => {
+      createApp(document.querySelector("#app"));
+    })
+    </script>
+  </body>
+</html>
