@@ -2,6 +2,7 @@ const W = 100;
 const HIGHLIGHT = 0x60;
 const RADIUS = 0.25;
 const HEIGHT = 4;
+const PROGRESS_WIDTH = 8;
 const TWO_PI = Math.PI * 2;
 
 function Tween(func, time, reverseOnEnd) {
@@ -121,8 +122,8 @@ function TaskCircle(startState, runTime) {
       graphics.endFill();
 
       edge.clear();
-      edge.lineStyle(8, 0xF8F8F2, 1);
-      edge.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, 8 + RADIUS * W);
+      edge.lineStyle(PROGRESS_WIDTH, 0xF8F8F2, 1);
+      edge.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, PROGRESS_WIDTH + RADIUS * W);
       edge.endFill();
     },
     update: delta => {
@@ -143,7 +144,7 @@ function TaskCircle(startState, runTime) {
       mask.lineStyle(1, 0x000000, 1);
       mask.beginFill(0x000000, 1);
       mask.moveTo(x1 * W, y1 * W);
-      mask.arc(x1 * W, y1 * W, 8 + RADIUS * W, angleStart, angle, false);
+      mask.arc(x1 * W, y1 * W, PROGRESS_WIDTH + RADIUS * W, angleStart, angle, false);
       mask.endFill();
 
       if (done) {
