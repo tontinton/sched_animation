@@ -1,5 +1,7 @@
 const W = 100;
 const HIGHLIGHT = 0x60;
+const RADIUS = 0.25;
+const HEIGHT = 4;
 
 function Tween(func, time, reverseOnEnd) {
   let step = 1 / time;
@@ -25,9 +27,13 @@ function QueueRect(x, y, height, baseColor) {
   const graphics = new PIXI.Graphics();
   let color = baseColor;
   let highlight = null;
+  let circles = [];
 
   let self = {
-    graphics,
+    init: (container) => {
+      self.draw();
+      container.addChild(graphics);
+    },
     draw: () => {
       graphics.clear();
       graphics.lineStyle(4, color, 1);
@@ -56,7 +62,91 @@ function QueueRect(x, y, height, baseColor) {
     startHighlight: () => {
       highlight = Tween(x => x ** 2, 10, true);
     },
+    push: circle => {
+      circle.updatePosition(x, y + height - circles.length - 1);
+      circles.push(circle);
+      self.startHighlight();
+    },
+    pop: () => {
+      const result = circles.length === 0 ? null : circles.shift();
+      if (result) {
+        let i = 0;
+        for (const circle of circles) {
+          circle.updatePosition(x, y + height - i - circles.length - 1);
+          i++;
+        }
+      }
+      return result;
+    },
+    peek: () => {
+      return circles.length === 0 ? null : circles[0];
+    }
   }
+
+  return self;
+}
+
+const TaskState = Object.freeze({
+	Idle: Symbol("idle"),
+	Blocked: Symbol("blocked"),
+	Running: Symbol("running"),
+	Moving: Symbol("moving"),
+})
+
+function TaskCircle(startState, runTime) {
+  const graphics = new PIXI.Graphics();
+  let x = 0;
+  let y = 0;
+
+  const edge = new PIXI.Graphics();
+
+  const mask = new PIXI.Graphics();
+  edge.mask = mask;
+
+  let phase = 0;
+  let state = startState;
+
+  let self = {
+    state,
+    init: (container) => {
+      self.draw();
+      container.addChild(graphics);
+      container.addChild(edge);
+      container.addChild(mask);
+    },
+    draw: () => {
+      graphics.clear();
+      graphics.beginFill(0xFF5555, 1);
+      graphics.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, RADIUS * W);
+      graphics.endFill();
+
+      edge.clear();
+      edge.lineStyle(8, 0xF8F8F2, 1);
+      edge.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, 8 + RADIUS * W);
+      edge.endFill();
+    },
+    update: delta => {
+      phase += delta / runTime;
+      phase %= Math.PI * 2;
+
+      const angleStart = 0 - Math.PI / 2;
+      const angle = phase + angleStart;
+
+      const x1 = (x + RADIUS * 2);
+      const y1 = (y + RADIUS * 2);
+
+      mask.clear();
+      mask.lineStyle(1, 0x000000, 1);
+      mask.beginFill(0x000000, 1);
+      mask.moveTo(x1 * W, y1 * W);
+      mask.arc(x1 * W, y1 * W, 8 + RADIUS * W, angleStart, angle, false);
+      mask.endFill();
+    },
+    updatePosition: (a, b) => {
+      x = a;
+      y = b;
+    },
+  };
 
   return self;
 }
@@ -64,17 +154,19 @@ function QueueRect(x, y, height, baseColor) {
 function createApp(element) {
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
+  const leftQueue = QueueRect(0, 0, HEIGHT, 0x6272A4);
+  const centerQueue = QueueRect(2, (HEIGHT - 1) / 2, 1, 0xBD93F9);
+  const rightQueue = QueueRect(4, 0, HEIGHT, 0x8BE9FD);
+
+  let circle = TaskCircle(TaskState.Running, 10);
+  centerQueue.push(circle);
+  const drawables = [leftQueue, centerQueue, rightQueue, circle];
+
   const container = new PIXI.Container();
   app.stage.addChild(container);
 
-  const leftQueue = QueueRect(0, 0, 5, 0x6272A4);
-  const centerQueue = QueueRect(2, 2, 1, 0xBD93F9);
-  const rightQueue = QueueRect(4, 0, 5, 0x8BE9FD);
-  const queues = [leftQueue, centerQueue, rightQueue];
-
-  for (const q of queues) {
-    q.draw();
-    container.addChild(q.graphics);
+  for (const drawable of drawables) {
+    drawable.init(container);
   }
 
   function layout(width, height) {
@@ -87,16 +179,10 @@ function createApp(element) {
   container.pivot.x = container.width / 2;
   container.pivot.y = container.height / 2;
 
-  let tick = 0;
   app.ticker.add(delta => {
-    for (const q of queues) {
-      if (tick % 100 == 0) {
-        q.startHighlight();
-      }
-      q.update(delta);
+    for (const drawable of drawables) {
+      drawable.update(delta);
     }
-    tick += 1;
-    // container.rotation -= 0.01 * delta;
   });
 
   app.renderer.on('resize', layout);
