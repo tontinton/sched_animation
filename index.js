@@ -2,6 +2,7 @@ const W = 100;
 const HIGHLIGHT = 0x60;
 const RADIUS = 0.25;
 const HEIGHT = 4;
+const TWO_PI = Math.PI * 2;
 
 function Tween(func, time, reverseOnEnd) {
   let step = 1 / time;
@@ -103,11 +104,10 @@ function TaskCircle(startState, runTime) {
   const mask = new PIXI.Graphics();
   edge.mask = mask;
 
-  let phase = 0;
+  let progress = null;
   let state = startState;
 
   let self = {
-    state,
     init: (container) => {
       self.draw();
       container.addChild(graphics);
@@ -126,8 +126,12 @@ function TaskCircle(startState, runTime) {
       edge.endFill();
     },
     update: delta => {
-      phase += delta / runTime;
-      phase %= Math.PI * 2;
+      if (!progress) {
+        return;
+      }
+
+      const [value, done] = progress.update(delta); 
+      const phase = TWO_PI * (state === TaskState.Running ? value : 1 - value);
 
       const angleStart = 0 - Math.PI / 2;
       const angle = phase + angleStart;
@@ -141,12 +145,27 @@ function TaskCircle(startState, runTime) {
       mask.moveTo(x1 * W, y1 * W);
       mask.arc(x1 * W, y1 * W, 8 + RADIUS * W, angleStart, angle, false);
       mask.endFill();
+
+      if (done) {
+        self.setState(state === TaskState.Running ? TaskState.Blocked : TaskState.Idle);
+      }
+    },
+    setState: newState => {
+      state = newState;
+
+      if (state === TaskState.Running || state === TaskState.Blocked) {
+        progress = Tween(x => x, runTime, false);
+      } else {
+        progress = null;
+      }
     },
     updatePosition: (a, b) => {
       x = a;
       y = b;
     },
   };
+
+  self.setState(startState);
 
   return self;
 }
@@ -158,7 +177,7 @@ function createApp(element) {
   const centerQueue = QueueRect(2, (HEIGHT - 1) / 2, 1, 0xBD93F9);
   const rightQueue = QueueRect(4, 0, HEIGHT, 0x8BE9FD);
 
-  let circle = TaskCircle(TaskState.Running, 10);
+  let circle = TaskCircle(TaskState.Running, 20);
   centerQueue.push(circle);
   const drawables = [leftQueue, centerQueue, rightQueue, circle];
 
