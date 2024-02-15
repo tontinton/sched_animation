@@ -1,10 +1,10 @@
 const W = 100;
-const HIGHLIGHT = 0x80;
-const HIGHLIGHT_TIME = 6;
+const HIGHLIGHT = 0x70;
+const HIGHLIGHT_TIME = 5;
 const RADIUS = 0.25;
 const HEIGHT = 4;
 const PROGRESS_WIDTH = 8;
-const CIRCLE_MOVE_TIME = 20;
+const CIRCLE_MOVE_TIME = 14;
 const TWO_PI = Math.PI * 2;
 
 function Tween(func, time, reverseOnEnd) {
@@ -73,7 +73,7 @@ function QueueRect(x, y, height, baseColor) {
       }
     },
     startHighlight: () => {
-      highlight = Tween(x => x ** 2, HIGHLIGHT_TIME, true);
+      highlight = Tween(x => x, HIGHLIGHT_TIME, true);
     },
     pushAnimated: (circle, onAnimationDone) => {
       circle.animateMoveTo(x, y + height - circles.length - 1, () => {
@@ -258,9 +258,9 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
 function createApp(element) {
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
-  const leftQueue = QueueRect(0, 0, HEIGHT, 0x6272A4);
-  const centerQueue = QueueRect(2, (HEIGHT - 1) / 2, 1, 0xBD93F9);
-  const rightQueue = QueueRect(4, 0, HEIGHT, 0x8BE9FD);
+  const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9);
+  const centerQueue = QueueRect(2, (HEIGHT - 1) / 2, 1, 0x50FA7B);
+  const rightQueue = QueueRect(4, 0, HEIGHT, 0x6272A4);
 
   function onTaskDone(circle) {
     centerQueue.remove(circle);
@@ -290,11 +290,11 @@ function createApp(element) {
     }
   }
 
-  centerQueue.push(TaskCircle(TaskState.Running, 0xFF5555, 90, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0x50FA7B, 66, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xFFB86C, 71, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xF1FA8C, 49, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xFF79C6, 39, onTaskDone, onTaskRefill));
+  centerQueue.push(TaskCircle(TaskState.Running, 0xFF5555, 84, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0xF1FA8C, 47, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0x8BE9FD, 77, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0xFF79C6, 41, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0xFFB86C, 56, onTaskDone, onTaskRefill));
   const drawables = [leftQueue, centerQueue, rightQueue, ...leftQueue.circles, ...centerQueue.circles, ...rightQueue.circles];
 
   const container = new PIXI.Container();
