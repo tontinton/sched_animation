@@ -85,7 +85,6 @@ function QueueRect(x, y, height, baseColor) {
     push: circle => {
       circle.updatePosition(x, y + height - circles.length - 1);
       circles.push(circle);
-      self.startHighlight();
     },
     remove: circle => {
       if (!self.empty()) {
