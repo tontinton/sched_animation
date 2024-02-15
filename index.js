@@ -1,9 +1,10 @@
 const W = 100;
 const HIGHLIGHT = 0x80;
-const HIGHLIGHT_TIME = 10;
+const HIGHLIGHT_TIME = 6;
 const RADIUS = 0.25;
 const HEIGHT = 4;
 const PROGRESS_WIDTH = 8;
+const CIRCLE_MOVE_TIME = 20;
 const TWO_PI = Math.PI * 2;
 
 function Tween(func, time, reverseOnEnd) {
@@ -35,7 +36,7 @@ function QueueRect(x, y, height, baseColor) {
   function updateCircles() {
     let i = 0;
     for (const circle of circles) {
-      circle.updatePosition(x, y + height - i - 1);
+      circle.animateMoveTo(x, y + height - i - 1);
       i++;
     }
   }
@@ -73,6 +74,13 @@ function QueueRect(x, y, height, baseColor) {
     },
     startHighlight: () => {
       highlight = Tween(x => x ** 2, HIGHLIGHT_TIME, true);
+    },
+    pushAnimated: (circle, onAnimationDone) => {
+      circle.animateMoveTo(x, y + height - circles.length - 1, () => {
+        self.startHighlight();
+        onAnimationDone();
+      });
+      circles.push(circle);
     },
     push: circle => {
       circle.updatePosition(x, y + height - circles.length - 1);
@@ -116,8 +124,10 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
   const mask = new PIXI.Graphics();
   edge.mask = mask;
 
+  let phase = 0;
   let progress = null;
   let state = startState;
+  let moveTo = null;
 
   let self = {
     init: (container) => {
@@ -151,28 +161,46 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
       mask.endFill();
     },
     update: delta => {
-      if (!progress) {
-        return;
+      let invalidate = false;
+
+      if (progress) {
+        const [value, done] = progress.update(delta); 
+        phase = TWO_PI * (state === TaskState.Blocked ? value : 1 - value);
+        invalidate = true;
+
+        if (done) {
+          self.resetPhase();
+          callback = state === TaskState.Running ? onTaskDone : onTaskRefill;
+          callback(self);
+          progress = null;
+        }
       }
 
-      const [value, done] = progress.update(delta);
-      phase = TWO_PI * (state === TaskState.Blocked ? value : 1 - value);
-      self.draw();
+      if (moveTo) {
+        const [value, done] = moveTo.progress.update(delta);
 
-      if (done) {
-        callback = state === TaskState.Running ? onTaskDone : onTaskRefill;
-        callback(self);
+        if (done) {
+          x = moveTo.endX;
+          y = moveTo.endY;
+
+          const onDone = moveTo.onDone;
+          moveTo = null;
+          if (onDone) {
+            onDone();
+          }
+        } else {
+          x = moveTo.startX + (moveTo.endX - moveTo.startX) * value;
+          y = moveTo.startY + (moveTo.endY - moveTo.startY) * value;
+        }
+
+        invalidate = true;
+      }
+
+      if (invalidate) {
+        self.draw();
       }
     },
-    setState: newState => {
-      state = newState;
-
-      if (state === TaskState.Running || state === TaskState.Blocked) {
-        progress = Tween(x => x, runTime, false);
-      } else {
-        progress = null;
-      }
-
+    resetPhase: () => {
       switch (state) {
         case TaskState.Running:
           phase = 0;
@@ -185,6 +213,35 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
           break;
       }
     },
+    setState: newState => {
+      state = newState;
+
+      if (state === TaskState.Running || state === TaskState.Blocked) {
+        progress = Tween(x => x, runTime, false);
+      }
+    },
+    animateMoveTo: (a, b, onDone) => {
+      if (moveTo) {
+        if (onDone) {
+          moveTo.onDone = onDone;
+        }
+
+        const ratio = (moveTo.endX - x) / (moveTo.endX - moveTo.startX);
+        moveTo.startX = a + (x - a) * (1 / ratio);
+        moveTo.startY = b + (y - b) * (1 / ratio);
+        moveTo.endX = a;
+        moveTo.endY = b;
+      } else {
+        moveTo = {
+          startX: x,
+          endX: a,
+          startY: y,
+          endY: b,
+          onDone,
+          progress: Tween(v => v, CIRCLE_MOVE_TIME, false)
+        };
+      }
+    },
     updatePosition: (a, b) => {
       x = a;
       y = b;
@@ -193,6 +250,7 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
   };
 
   self.setState(startState);
+  self.resetPhase();
 
   return self;
 }
@@ -206,13 +264,15 @@ function createApp(element) {
 
   function onTaskDone(circle) {
     centerQueue.remove(circle);
-    circle.setState(TaskState.Blocked);
-    rightQueue.push(circle);
+    rightQueue.pushAnimated(circle, () => {
+      circle.setState(TaskState.Blocked);
+    });
 
     if (!leftQueue.empty()) {
       const runCircle = leftQueue.pop();
-      runCircle.setState(TaskState.Running);
-      centerQueue.push(runCircle);
+      centerQueue.pushAnimated(runCircle, () => {
+        runCircle.setState(TaskState.Running);
+      });
     }
   }
 
@@ -220,11 +280,13 @@ function createApp(element) {
     rightQueue.remove(circle);
 
     if (leftQueue.empty() && centerQueue.empty()) {
-      circle.setState(TaskState.Running);
-      centerQueue.push(circle);
+      centerQueue.pushAnimated(circle, () => {
+        circle.setState(TaskState.Running);
+      });
     } else {
-      circle.setState(TaskState.Idle);
-      leftQueue.push(circle);
+      leftQueue.pushAnimated(circle, () => {
+        circle.setState(TaskState.Idle);
+      });
     }
   }
 
