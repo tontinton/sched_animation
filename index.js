@@ -7,7 +7,7 @@ const PROGRESS_WIDTH = 8;
 const CIRCLE_MOVE_TIME = 14;
 const TWO_PI = Math.PI * 2;
 
-function Tween(func, time, reverseOnEnd) {
+function Tween(func, time, reverseTime) {
   let step = 1 / time;
   let value = 0; // up to 1 - meaning done.
   let reverse = false;
@@ -17,9 +17,10 @@ function Tween(func, time, reverseOnEnd) {
       value = Math.max(Math.min(nextValue, 1), 0);
 
       let end = reverse ? value === 0 : value === 1;
-      if (value === 1 && reverseOnEnd) {
+      if (value === 1 && reverseTime) {
         reverse = true;
         end = false;
+        step = 1 / reverseTime;
       }
 
       return [Math.max(Math.min(func(value), 1), 0), end];
@@ -73,7 +74,7 @@ function QueueRect(x, y, height, baseColor) {
       }
     },
     startHighlight: () => {
-      highlight = Tween(x => x, HIGHLIGHT_TIME, true);
+      highlight = Tween(x => x, HIGHLIGHT_TIME, HIGHLIGHT_TIME);
     },
     pushAnimated: (circle, onAnimationDone) => {
       circle.animateMoveTo(x, y + height - circles.length - 1, () => {
@@ -113,7 +114,7 @@ const TaskState = Object.freeze({
 	Running: Symbol("running"),
 })
 
-function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
+function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRefill) {
   const graphics = new PIXI.Graphics();
   let x = 0;
   let y = 0;
@@ -216,7 +217,7 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
       state = newState;
 
       if (state === TaskState.Running || state === TaskState.Blocked) {
-        progress = Tween(x => x, runTime, false);
+        progress = Tween(x => x, state === TaskState.Running ? runTime : blockTime);
       }
     },
     animateMoveTo: (a, b, onDone) => {
@@ -237,7 +238,7 @@ function TaskCircle(startState, color, runTime, onTaskDone, onTaskRefill) {
           startY: y,
           endY: b,
           onDone,
-          progress: Tween(v => v, CIRCLE_MOVE_TIME, false)
+          progress: Tween(v => v, CIRCLE_MOVE_TIME),
         };
       }
     },
@@ -289,11 +290,11 @@ function createApp(element) {
     }
   }
 
-  centerQueue.push(TaskCircle(TaskState.Running, 0xFF5555, 84, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xF1FA8C, 47, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0x8BE9FD, 77, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xFF79C6, 41, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xFFB86C, 56, onTaskDone, onTaskRefill));
+  centerQueue.push(TaskCircle(TaskState.Running, 0xFF5555, 84, 30, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0x8BE9FD, 77, 55, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0xFF79C6, 29, 87, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0xFFB86C, 39, 70, onTaskDone, onTaskRefill));
+  leftQueue.push(TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, onTaskDone, onTaskRefill));
   const drawables = [leftQueue, centerQueue, rightQueue, ...leftQueue.circles, ...centerQueue.circles, ...rightQueue.circles];
 
   const container = new PIXI.Container();
