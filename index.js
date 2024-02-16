@@ -9,7 +9,7 @@ const CIRCLE_MOVE_TIME = 14;
 const QUOTA_CIRCLE_RADIUS = 0.08;
 const QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
 const TWO_PI = Math.PI * 2;
-const TIMER_MUL = 1;
+const TIMER_MUL = 2;
 
 function Tween(func, time, reverseTime) {
   let step = 1 / (time * TIMER_MUL);
