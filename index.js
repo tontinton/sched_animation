@@ -260,8 +260,10 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
       state = newState;
 
       if (!circleProgress.isRunning() && (state === TaskState.Running || state === TaskState.Blocked)) {
-        circleProgress.start(state === TaskState.Running ? runTime : blockTime, state === TaskState.Blocked, () => {
-          callback = state === TaskState.Running ? onTaskDone : onTaskRefill;
+        const runState = state === TaskState.Running;
+        const time = runState ? runTime : (blockTime * (Math.random() + 0.5));
+        circleProgress.start(time, !runState, () => {
+          callback = runState ? onTaskDone : onTaskRefill;
           callback(self);
         });
       }
