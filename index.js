@@ -5,6 +5,8 @@ const RADIUS = 0.25;
 const HEIGHT = 4;
 const PROGRESS_WIDTH = 8;
 const CIRCLE_MOVE_TIME = 14;
+const QUOTA_CIRCLE_RADIUS = 0.08;
+const QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
 const TWO_PI = Math.PI * 2;
 const TIMER_MUL = 1;
 
@@ -263,31 +265,67 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
   return self;
 }
 
-function RunQuota(app, runTime) {
-  let time = 0;
+function RunQuota(app, runTime, x, y) {
+  const edge = new PIXI.Graphics();
+  const mask = new PIXI.Graphics();
+  edge.mask = mask;
+
   let onDone = null;
+  let phase = 0;
+  let progress = null;
 
   let self = {
+    init: container => {
+      self.draw();
+      container.addChild(edge);
+      container.addChild(mask);
+    },
+    draw: () => {
+      edge.clear();
+      edge.lineStyle(QUOTA_CIRCLE_PROGRESS_WIDTH, phase == TWO_PI ? 0xFF5555 : 0x50FA7B, 1);
+      edge.drawCircle(x * W, y * W, QUOTA_CIRCLE_PROGRESS_WIDTH + QUOTA_CIRCLE_RADIUS * W);
+      edge.endFill();
+
+      const angleStart = 0 - Math.PI / 2;
+      const angle = phase + angleStart;
+
+      mask.clear();
+      mask.lineStyle(1, 0x000000, 1);
+      mask.beginFill(0x000000, 1);
+      mask.moveTo(x * W, y * W);
+      mask.arc(x * W, y * W, QUOTA_CIRCLE_PROGRESS_WIDTH + QUOTA_CIRCLE_RADIUS * W, angleStart, angle, false);
+      mask.endFill();
+    },
+    update: delta => {
+      if (!progress) {
+        return;
+      }
+
+      const [value, done] = progress.update(delta); 
+      phase = TWO_PI * value;
+
+      if (done) {
+        phase = TWO_PI;
+        self.stop();
+        onDone();
+        progress = null;
+      }
+
+      self.draw();
+    },
     start: onQuotaDone => {
       if (!runTime) {
         return;
       }
-      time = 0;
+      progress = Tween(x => x, runTime);
       onDone = onQuotaDone;
-      app.ticker.add(self.tick);
-    },
-    tick: delta => {
-      time += delta * (1 / (runTime * TIMER_MUL));
-      if (time >= 1) {
-        self.stop();
-        onDone();
-      }
+      app.ticker.add(self.update);
     },
     stop: () => {
       if (!runTime) {
         return;
       }
-      app.ticker.remove(self.tick);
+      app.ticker.remove(self.update);
     }
   };
 
@@ -301,7 +339,7 @@ function createApp(element, runQuotaTime) {
   const centerQueue = QueueRect(2, (HEIGHT - 1) / 2, 1, 0x50FA7B);
   const rightQueue = QueueRect(4, 0, HEIGHT, 0x6272A4);
 
-  const runQuota = RunQuota(app, runQuotaTime);
+  const runQuota = RunQuota(app, runQuotaTime, 2.5, (HEIGHT - 1) / 2 - 0.5);
 
   function onTaskDone(circle) {
     runQuota.stop();
@@ -364,6 +402,7 @@ function createApp(element, runQuotaTime) {
   for (const drawable of drawables) {
     drawable.init(container);
   }
+  runQuota.init(container);
 
   function layout(width, height) {
     container.x = width / 2;
