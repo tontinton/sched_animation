@@ -499,3 +499,5 @@ function createApp(element, runQuotaTime, deadline) {
 
   element.appendChild(app.view);
 }
+
+window.createApp = createApp;
