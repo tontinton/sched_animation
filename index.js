@@ -1,13 +1,13 @@
-const W = 100;
+let W = 100;
 const HIGHLIGHT = 0x70;
 const HIGHLIGHT_TIME = 5;
 const RADIUS = 0.25;
 const DEADLINE_RADIUS = 0.34;
 const HEIGHT = 4;
-const PROGRESS_WIDTH = 8;
+let PROGRESS_WIDTH = 8;
 const CIRCLE_MOVE_TIME = 14;
 const QUOTA_CIRCLE_RADIUS = 0.08;
-const QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
+let QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
 const TWO_PI = Math.PI * 2;
 const TIMER_MUL = 2;
 
@@ -405,14 +405,33 @@ function RunQuota(app, runTime, x, y) {
   return self;
 }
 
-function createApp(element, runQuotaTime, deadline) {
+function createApp(size, element, runQuotaTime, deadline) {
+  switch (size) {
+    case 'small':
+      W = 60;
+      PROGRESS_WIDTH = 5;
+      QUOTA_CIRCLE_PROGRESS_WIDTH = 7;
+      break;
+    case 'medium':
+      W = 75;
+      PROGRESS_WIDTH = 6;
+      QUOTA_CIRCLE_PROGRESS_WIDTH = 8;
+      break;
+    case 'big':
+      W = 100;
+      PROGRESS_WIDTH = 8;
+      QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
+      break;
+  }
+
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
+  const centerX = size === 'big' ? 2 : 1.5;
   const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9, deadline);
-  const centerQueue = QueueRect(2, (HEIGHT - 1) / 2, 1, 0x50FA7B);
-  const rightQueue = QueueRect(4, 0, HEIGHT, 0x6272A4);
+  const centerQueue = QueueRect(centerX, (HEIGHT - 1) / 2, 1, 0x50FA7B);
+  const rightQueue = QueueRect(size === 'big' ? 4 : 3, 0, HEIGHT, 0x6272A4);
 
-  const runQuota = RunQuota(app, runQuotaTime, 2.5, (HEIGHT - 1) / 2 - 0.5);
+  const runQuota = RunQuota(app, runQuotaTime, centerX + 0.5, (HEIGHT - 1) / 2 - 0.5);
 
   function onTaskDone(circle) {
     runQuota.stop();

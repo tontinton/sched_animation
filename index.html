@@ -30,12 +30,30 @@
       document.addEventListener("DOMContentLoaded", resolve);
     });
 
+    let size = null;
+    function run() {
+      let newSize = 'big';
+      if (window.innerWidth < 400) {
+        newSize = 'small';
+      } else if (window.innerWidth < 600) {
+        newSize = 'medium';
+      }
+
+      if (size === null || newSize !== size) {
+        const element = document.querySelector("#app");
+        element.innerHTML = "";
+        size = newSize;
+        createApp(size, element, 32, true);
+      }
+    };
+
     Promise.all([
       loadScript("https://pixijs.download/release/pixi.min.js"),
       loadScript("index.js"),
       waitForDocumentLoad(),
     ]).then(() => {
-      createApp(document.querySelector("#app"), 32, true);
+      run();
+      window.addEventListener('resize', run);
     })
     </script>
   </body>
