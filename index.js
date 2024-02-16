@@ -116,6 +116,71 @@ function QueueRect(x, y, height, baseColor) {
   return self;
 }
 
+function CircleProgress(radius, width, color, colorWhenFull) {
+  if (!colorWhenFull) {
+    colorWhenFull = color;
+  }
+
+  const edge = new PIXI.Graphics();
+  const mask = new PIXI.Graphics();
+  edge.mask = mask;
+
+  let phase = 0;
+  let progress = null;
+  let onDone = null;
+
+  let self = {
+    init: (x, y, container) => {
+      self.draw(x, y);
+      container.addChild(edge);
+      container.addChild(mask);
+    },
+    draw: (x, y) => {
+      edge.clear();
+      edge.lineStyle(width, phase == TWO_PI ? colorWhenFull : color, 1);
+      edge.drawCircle(x * W, y * W, width + radius * W);
+      edge.endFill();
+
+      const angleStart = 0 - Math.PI / 2;
+      const angle = phase + angleStart;
+
+      mask.clear();
+      mask.lineStyle(1, 0x000000, 1);
+      mask.beginFill(0x000000, 1);
+      mask.moveTo(x * W, y * W);
+      mask.arc(x * W, y * W, width + radius * W, angleStart, angle, false);
+      mask.endFill();
+    },
+    update: delta => {
+      if (!progress) {
+        return;
+      }
+
+      const [value, done] = progress.update(delta); 
+      phase = TWO_PI * value;
+
+      if (done) {
+        progress = null;
+        if (onDone) {
+          onDone();
+        }
+      }
+    },
+    start: (runTime, forwards, onProgressDone) => {
+      progress = Tween(forwards ? x => x : x => 1 - x, runTime);
+      onDone = onProgressDone;
+    },
+    setPhase: newPhase => {
+      phase = newPhase;
+    },
+    isRunning: () => {
+      return !!progress;
+    }
+  };
+
+  return self;
+}
+
 const TaskState = Object.freeze({
 	Idle: Symbol("idle"),
 	Blocked: Symbol("blocked"),
@@ -127,13 +192,7 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
   let x = 0;
   let y = 0;
 
-  const edge = new PIXI.Graphics();
-
-  const mask = new PIXI.Graphics();
-  edge.mask = mask;
-
-  let phase = 0;
-  let progress = null;
+  let circleProgress = CircleProgress(RADIUS, PROGRESS_WIDTH, 0xF8F8F2);
   let state = startState;
   let moveTo = null;
 
@@ -141,9 +200,8 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
     state,
     init: (container) => {
       self.draw();
+      circleProgress.init(x + RADIUS * 2, y + RADIUS * 2, container);
       container.addChild(graphics);
-      container.addChild(edge);
-      container.addChild(mask);
     },
     draw: () => {
       graphics.clear();
@@ -151,38 +209,14 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
       graphics.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, RADIUS * W);
       graphics.endFill();
 
-      edge.clear();
-      edge.lineStyle(PROGRESS_WIDTH, 0xF8F8F2, 1);
-      edge.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, PROGRESS_WIDTH + RADIUS * W);
-      edge.endFill();
-
-      const angleStart = 0 - Math.PI / 2;
-      const angle = phase + angleStart;
-
-      const x1 = (x + RADIUS * 2);
-      const y1 = (y + RADIUS * 2);
-
-      mask.clear();
-      mask.lineStyle(1, 0x000000, 1);
-      mask.beginFill(0x000000, 1);
-      mask.moveTo(x1 * W, y1 * W);
-      mask.arc(x1 * W, y1 * W, PROGRESS_WIDTH + RADIUS * W, angleStart, angle, false);
-      mask.endFill();
+      circleProgress.draw(x + RADIUS * 2, y + RADIUS * 2);
     },
     update: delta => {
       let invalidate = false;
 
-      if (progress && state !== TaskState.Idle) {
-        const [value, done] = progress.update(delta); 
-        phase = TWO_PI * (state === TaskState.Blocked ? value : 1 - value);
+      if (circleProgress.isRunning() && state !== TaskState.Idle) {
+        circleProgress.update(delta);
         invalidate = true;
-
-        if (done) {
-          self.resetPhase();
-          callback = state === TaskState.Running ? onTaskDone : onTaskRefill;
-          callback(self);
-          progress = null;
-        }
       }
 
       if (moveTo) {
@@ -212,21 +246,24 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
     resetPhase: () => {
       switch (state) {
         case TaskState.Running:
-          phase = 0;
+          circleProgress.setPhase(0);
           break;
         case TaskState.Blocked:
-          phase = TWO_PI;
+          circleProgress.setPhase(TWO_PI);
           break;
         case TaskState.Idle:
-          phase = TWO_PI;
+          circleProgress.setPhase(TWO_PI);
           break;
       }
     },
     setState: newState => {
       state = newState;
 
-      if (!progress && (state === TaskState.Running || state === TaskState.Blocked)) {
-        progress = Tween(x => x, state === TaskState.Running ? runTime : blockTime);
+      if (!circleProgress.isRunning() && (state === TaskState.Running || state === TaskState.Blocked)) {
+        circleProgress.start(state === TaskState.Running ? runTime : blockTime, state === TaskState.Blocked, () => {
+          callback = state === TaskState.Running ? onTaskDone : onTaskRefill;
+          callback(self);
+        });
       }
     },
     animateMoveTo: (a, b, onDone) => {
@@ -266,59 +303,24 @@ function TaskCircle(startState, color, runTime, blockTime, onTaskDone, onTaskRef
 }
 
 function RunQuota(app, runTime, x, y) {
-  const edge = new PIXI.Graphics();
-  const mask = new PIXI.Graphics();
-  edge.mask = mask;
-
-  let onDone = null;
-  let phase = 0;
-  let progress = null;
+  let circleProgress = CircleProgress(QUOTA_CIRCLE_RADIUS, QUOTA_CIRCLE_PROGRESS_WIDTH, 0x50FA7B, 0xFF5555);
 
   let self = {
     init: container => {
-      self.draw();
-      container.addChild(edge);
-      container.addChild(mask);
-    },
-    draw: () => {
-      edge.clear();
-      edge.lineStyle(QUOTA_CIRCLE_PROGRESS_WIDTH, phase == TWO_PI ? 0xFF5555 : 0x50FA7B, 1);
-      edge.drawCircle(x * W, y * W, QUOTA_CIRCLE_PROGRESS_WIDTH + QUOTA_CIRCLE_RADIUS * W);
-      edge.endFill();
-
-      const angleStart = 0 - Math.PI / 2;
-      const angle = phase + angleStart;
-
-      mask.clear();
-      mask.lineStyle(1, 0x000000, 1);
-      mask.beginFill(0x000000, 1);
-      mask.moveTo(x * W, y * W);
-      mask.arc(x * W, y * W, QUOTA_CIRCLE_PROGRESS_WIDTH + QUOTA_CIRCLE_RADIUS * W, angleStart, angle, false);
-      mask.endFill();
+      circleProgress.init(x, y, container);
     },
     update: delta => {
-      if (!progress) {
-        return;
-      }
-
-      const [value, done] = progress.update(delta); 
-      phase = TWO_PI * value;
-
-      if (done) {
-        phase = TWO_PI;
-        self.stop();
-        onDone();
-        progress = null;
-      }
-
-      self.draw();
+      circleProgress.update(delta);
+      circleProgress.draw(x, y);
     },
     start: onQuotaDone => {
       if (!runTime) {
         return;
       }
-      progress = Tween(x => x, runTime);
-      onDone = onQuotaDone;
+      circleProgress.start(runTime, true, () => {
+        self.stop();
+        onQuotaDone();
+      })
       app.ticker.add(self.update);
     },
     stop: () => {
