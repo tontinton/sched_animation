@@ -491,7 +491,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
   return self;
 }
 
-function createApp(size, element, runQuotaTime, deadline) {
+function createApp(size, element, runQuotaTime, deadline, numCpus) {
   switch (size) {
     case 'small':
       W = 60;
@@ -510,12 +510,23 @@ function createApp(size, element, runQuotaTime, deadline) {
       break;
   }
 
+  if (!numCpus) {
+    numCpus = 1;
+  }
+
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
   const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9, deadline);
   const rightQueue = QueueRect(size === 'big' ? 4 : 3, 0, HEIGHT, 0x6272A4);
 
-  const cpu = Cpu(app, leftQueue, rightQueue, size === 'big' ? 2 : 1.5, (HEIGHT - 1) / 2, 1, 0x50FA7B, runQuotaTime);
+  const cpus = []
+  for (let i = 0; i < numCpus; i++) {
+    const offset = i * HEIGHT / numCpus;
+    const step = HEIGHT / numCpus;
+    const y = offset + step / 2;
+    const cpu = Cpu(app, leftQueue, rightQueue, size === 'big' ? 2 : 1.5, y - 0.5, 1, 0x50FA7B, runQuotaTime);
+    cpus.push(cpu);
+  }
 
   const circles = [
     TaskCircle(TaskState.Running, 0xFF5555, 84, 30, deadline ? 440 : 0),
@@ -525,11 +536,11 @@ function createApp(size, element, runQuotaTime, deadline) {
     TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, deadline ? 500 : 0),
   ];
 
-  cpu.push(circles[0]);
+  cpus[0].push(circles[0]);
   for (let i = 1; i < circles.length; i++) {
     leftQueue.push(circles[i]);
   }
-  const drawables = [leftQueue, cpu, rightQueue, ...circles];
+  const drawables = [leftQueue, ...cpus, rightQueue, ...circles];
 
   const container = new PIXI.Container();
   app.stage.addChild(container);
@@ -553,7 +564,10 @@ function createApp(size, element, runQuotaTime, deadline) {
       drawable.update(delta);
     }
   });
-  cpu.run();
+
+  for (const cpu of cpus) {
+    cpu.run();
+  }
 
   app.renderer.on('resize', layout);
 
