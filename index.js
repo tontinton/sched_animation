@@ -47,8 +47,11 @@ function QueueRect(x, y, height, baseColor, deadline) {
     }
   }
 
+  function startHighlight() {
+    highlight = Tween(x => x, HIGHLIGHT_TIME, HIGHLIGHT_TIME);
+  }
+
   let self = {
-    circles,
     init: (container) => {
       self.draw();
       container.addChild(graphics);
@@ -78,12 +81,9 @@ function QueueRect(x, y, height, baseColor, deadline) {
         highlight = null;
       }
     },
-    startHighlight: () => {
-      highlight = Tween(x => x, HIGHLIGHT_TIME, HIGHLIGHT_TIME);
-    },
     pushAnimated: (circle, onAnimationDone) => {
       circle.animateMoveTo(x, y + height - circles.length - 1, () => {
-        self.startHighlight();
+        startHighlight();
         if (onAnimationDone) {
           onAnimationDone();
         }
@@ -101,9 +101,11 @@ function QueueRect(x, y, height, baseColor, deadline) {
       circles.push(circle);
     },
     remove: circle => {
-      if (!self.empty()) {
-        circles.splice(circles.indexOf(circle), 1);
+      if (self.empty()) {
+        return;
       }
+
+      circles.splice(circles.indexOf(circle), 1);
       updateCircles();
     },
     pop: () => {
@@ -111,7 +113,7 @@ function QueueRect(x, y, height, baseColor, deadline) {
         return null;
       }
 
-      let result;
+      let circle;
       if (deadline) {
         let lowest = 0;
         for (let i = 1; i < circles.length; i++) {
@@ -119,21 +121,145 @@ function QueueRect(x, y, height, baseColor, deadline) {
             lowest = i;
           }
         }
-        result = circles.splice(lowest, 1)[0];
-        result.stopDeadline();
+        circle = circles.splice(lowest, 1)[0];
+        circle.stopDeadline();
       } else {
-        result = circles.shift();
+        circle = circles.shift();
       }
       updateCircles();
-      return result;
+      return circle;
     },
     peek: () => {
       return self.empty() ? null : circles[0];
     },
     empty: () => {
       return circles.length === 0;
+    },
+  }
+
+  return self;
+}
+
+function RunQuota(app, runTime, x, y) {
+  let circleProgress = CircleProgress(QUOTA_CIRCLE_RADIUS, QUOTA_CIRCLE_PROGRESS_WIDTH, 0x50FA7B, 0xFF5555);
+
+  function update(delta) {
+    circleProgress.update(delta);
+    circleProgress.draw(x, y);
+  }
+
+  let self = {
+    init: container => {
+      circleProgress.init(x, y, container);
+    },
+    start: onDone => {
+      circleProgress.start(runTime, true, () => {
+        self.stop();
+        onDone();
+      })
+      app.ticker.add(update);
+    },
+    stop: () => {
+      app.ticker.remove(update);
+    },
+  };
+
+  return self;
+}
+
+function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime) {
+  const queue = QueueRect(x, y, height, baseColor, false);
+  const runQuota = runQuotaTime > 0 ? RunQuota(app, runQuotaTime, x + 0.5, y - 0.4) : null;
+
+  function onTaskDone(circle) {
+    self.remove(circle);
+    blockedQueue.pushAnimated(circle, () => {
+      circle.setState(TaskState.Blocked, onTaskRefill.bind(undefined, circle));
+    });
+
+    if (!idleQueue.empty()) {
+      self.pushAnimated(idleQueue.pop());
     }
   }
+
+  function onTaskRefill(circle) {
+    blockedQueue.remove(circle);
+
+    if (idleQueue.empty() && self.empty()) {
+      self.pushAnimated(circle);
+    } else {
+      idleQueue.pushAnimated(circle, () => {
+        circle.setState(TaskState.Idle);
+      });
+    }
+  }
+
+  function onRunQuota() {
+    if (idleQueue.empty()) {
+      return;
+    }
+
+    const pauseCircle = self.pop();
+    const runCircle = idleQueue.pop();
+
+    pauseCircle.setState(TaskState.Idle);
+    idleQueue.pushAnimated(pauseCircle);
+
+    self.pushAnimated(runCircle);
+  }
+
+  let self = {
+    init: (container) => {
+      queue.init(container);
+      if (runQuota) {
+        runQuota.init(container);
+      }
+    },
+    draw: () => {
+      queue.draw();
+    },
+    update: delta => {
+      queue.update(delta);
+    },
+    pushAnimated: circle => {
+      queue.pushAnimated(circle, self.run);
+    },
+    push: circle => {
+      queue.push(circle);
+      if (runQuota) {
+        runQuota.start(onRunQuota);
+      }
+    },
+    remove: circle => {
+      queue.remove(circle);
+      if (runQuota) {
+        runQuota.stop();
+      }
+    },
+    pop: () => {
+      return queue.pop();
+    },
+    peek: () => {
+      return queue.peek();
+    },
+    empty: () => {
+      return queue.empty();
+    },
+    run: () => {
+      let circle = self.peek();
+      if (circle) {
+        circle.setState(TaskState.Running, onTaskDone.bind(undefined, circle));
+        if (runQuota) {
+          runQuota.start(onRunQuota);
+        }
+      } else {
+        circle = idleQueue.pop();
+        if (circle) {
+          self.pushAnimated(circle);
+        }
+      }
+    },
+  };
 
   return self;
 }
@@ -215,7 +341,7 @@ const TaskState = Object.freeze({
 	Running: Symbol("running"),
 })
 
-function TaskCircle(startState, color, runTime, blockTime, deadlineTime, onTaskDone, onTaskRefill) {
+function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
   const graphics = new PIXI.Graphics();
   let x = 0;
   let y = 0;
@@ -225,8 +351,28 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime, onTaskD
   let moveTo = null;
   let deadlineCircleProgress = deadlineTime > 0 ? CircleProgress(DEADLINE_RADIUS, PROGRESS_WIDTH, 0xb7fc88) : null;
 
+  switch (state) {
+    case TaskState.Running:
+      circleProgress.setPhase(0);
+      if (deadlineCircleProgress) {
+        deadlineCircleProgress.setPhase(0);
+      }
+      break;
+    case TaskState.Blocked:
+      circleProgress.setPhase(TWO_PI);
+      if (deadlineCircleProgress) {
+        deadlineCircleProgress.setPhase(0);
+      }
+      break;
+    case TaskState.Idle:
+      circleProgress.setPhase(TWO_PI);
+      if (deadlineCircleProgress) {
+        deadlineCircleProgress.setPhase(TWO_PI);
+      }
+      break;
+  }
+
   let self = {
-    state,
     init: (container) => {
       self.draw();
       circleProgress.init(x + RADIUS * 2, y + RADIUS * 2, container);
@@ -283,38 +429,13 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime, onTaskD
         self.draw();
       }
     },
-    resetPhase: () => {
-      switch (state) {
-        case TaskState.Running:
-          circleProgress.setPhase(0);
-          if (deadlineCircleProgress) {
-            deadlineCircleProgress.setPhase(0);
-          }
-          break;
-        case TaskState.Blocked:
-          circleProgress.setPhase(TWO_PI);
-          if (deadlineCircleProgress) {
-            deadlineCircleProgress.setPhase(0);
-          }
-          break;
-        case TaskState.Idle:
-          circleProgress.setPhase(TWO_PI);
-          if (deadlineCircleProgress) {
-            deadlineCircleProgress.setPhase(TWO_PI);
-          }
-          break;
-      }
-    },
-    setState: newState => {
+    setState: (newState, onStateDone) => {
       state = newState;
 
       if (!circleProgress.isRunning() && (state === TaskState.Running || state === TaskState.Blocked)) {
         const runState = state === TaskState.Running;
         const time = runState ? runTime : (blockTime * (Math.random() + 0.5));
-        circleProgress.start(time, !runState, () => {
-          callback = runState ? onTaskDone : onTaskRefill;
-          callback(self);
-        });
+        circleProgress.start(time, !runState, onStateDone);
       }
     },
     animateMoveTo: (a, b, onDone) => {
@@ -367,41 +488,6 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime, onTaskD
     },
   };
 
-  self.setState(startState);
-  self.resetPhase();
-
-  return self;
-}
-
-function RunQuota(app, runTime, x, y) {
-  let circleProgress = CircleProgress(QUOTA_CIRCLE_RADIUS, QUOTA_CIRCLE_PROGRESS_WIDTH, 0x50FA7B, 0xFF5555);
-
-  let self = {
-    init: container => {
-      circleProgress.init(x, y, container);
-    },
-    update: delta => {
-      circleProgress.update(delta);
-      circleProgress.draw(x, y);
-    },
-    start: onQuotaDone => {
-      if (!runTime) {
-        return;
-      }
-      circleProgress.start(runTime, true, () => {
-        self.stop();
-        onQuotaDone();
-      })
-      app.ticker.add(self.update);
-    },
-    stop: () => {
-      if (!runTime) {
-        return;
-      }
-      app.ticker.remove(self.update);
-    }
-  };
-
   return self;
 }
 
@@ -426,67 +512,24 @@ function createApp(size, element, runQuotaTime, deadline) {
 
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
-  const centerX = size === 'big' ? 2 : 1.5;
   const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9, deadline);
-  const centerQueue = QueueRect(centerX, (HEIGHT - 1) / 2, 1, 0x50FA7B);
   const rightQueue = QueueRect(size === 'big' ? 4 : 3, 0, HEIGHT, 0x6272A4);
 
-  const runQuota = RunQuota(app, runQuotaTime, centerX + 0.5, (HEIGHT - 1) / 2 - 0.5);
+  const cpu = Cpu(app, leftQueue, rightQueue, size === 'big' ? 2 : 1.5, (HEIGHT - 1) / 2, 1, 0x50FA7B, runQuotaTime);
 
-  function onTaskDone(circle) {
-    runQuota.stop();
-    centerQueue.remove(circle);
-    rightQueue.pushAnimated(circle, () => {
-      circle.setState(TaskState.Blocked);
-    });
+  const circles = [
+    TaskCircle(TaskState.Running, 0xFF5555, 84, 30, deadline ? 440 : 0),
+    TaskCircle(TaskState.Idle, 0x8BE9FD, 77, 55, deadline ? 430 : 0),
+    TaskCircle(TaskState.Idle, 0xFF79C6, deadline ? 9 : 29, deadline ? 13 : 27, deadline ? 50 : 0),
+    TaskCircle(TaskState.Idle, 0xFFB86C, 39, 70, deadline ? 410 : 0),
+    TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, deadline ? 500 : 0),
+  ];
 
-    if (!leftQueue.empty()) {
-      const runCircle = leftQueue.pop();
-      centerQueue.pushAnimated(runCircle, () => {
-        runCircle.setState(TaskState.Running);
-        runQuota.start(onRunQuota);
-      });
-    }
+  cpu.push(circles[0]);
+  for (let i = 1; i < circles.length; i++) {
+    leftQueue.push(circles[i]);
   }
-
-  function onTaskRefill(circle) {
-    rightQueue.remove(circle);
-
-    if (leftQueue.empty() && centerQueue.empty()) {
-      centerQueue.pushAnimated(circle, () => {
-        circle.setState(TaskState.Running);
-        runQuota.start(onRunQuota);
-      });
-    } else {
-      leftQueue.pushAnimated(circle, () => {
-        circle.setState(TaskState.Idle);
-      });
-    }
-  }
-
-  function onRunQuota() {
-    if (leftQueue.empty()) {
-      return;
-    }
-
-    const pauseCircle = centerQueue.pop();
-    const runCircle = leftQueue.pop();
-
-    pauseCircle.setState(TaskState.Idle);
-    leftQueue.pushAnimated(pauseCircle);
-
-    centerQueue.pushAnimated(runCircle, () => {
-      runCircle.setState(TaskState.Running);
-      runQuota.start(onRunQuota);
-    });
-  }
-
-  centerQueue.push(TaskCircle(TaskState.Running, 0xFF5555, 84, 30, deadline ? 440 : 0, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0x8BE9FD, 77, 55, deadline ? 430 : 0, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xFF79C6, deadline ? 9 : 29, deadline ? 13 : 27, deadline ? 50 : 0, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xFFB86C, 39, 70, deadline ? 410 : 0, onTaskDone, onTaskRefill));
-  leftQueue.push(TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, deadline ? 500 : 0, onTaskDone, onTaskRefill));
-  const drawables = [leftQueue, centerQueue, rightQueue, ...leftQueue.circles, ...centerQueue.circles, ...rightQueue.circles];
+  const drawables = [leftQueue, cpu, rightQueue, ...circles];
 
   const container = new PIXI.Container();
   app.stage.addChild(container);
@@ -494,7 +537,6 @@ function createApp(size, element, runQuotaTime, deadline) {
   for (const drawable of drawables) {
     drawable.init(container);
   }
-  runQuota.init(container);
 
   function layout(width, height) {
     container.x = width / 2;
@@ -511,8 +553,7 @@ function createApp(size, element, runQuotaTime, deadline) {
       drawable.update(delta);
     }
   });
-
-  runQuota.start(onRunQuota);
+  cpu.run();
 
   app.renderer.on('resize', layout);
 
