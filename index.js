@@ -12,7 +12,10 @@ const QUOTA_PROGRESS_EXTRA_SIZE = 0.2;
 const TWO_PI = Math.PI * 2;
 const TIMER_MUL = 2;
 
-function Tween(func, time, reverseTime) {
+function Tween(time, reverseTime, opposite) {
+  if (!opposite) {
+    opposite = false;
+  }
   let step = 1 / (time * TIMER_MUL);
   let value = 0; // up to 1 - meaning done.
   let reverse = false;
@@ -29,7 +32,7 @@ function Tween(func, time, reverseTime) {
         step = 1 / (reverseTime * TIMER_MUL);
       }
 
-      return [Math.max(Math.min(func(value), 1), 0), end];
+      return [opposite ? 1 - value : value, end];
     },
   };
 }
@@ -49,7 +52,7 @@ function QueueRect(x, y, height, baseColor, deadline) {
   }
 
   function startHighlight() {
-    highlight = Tween(x => x, HIGHLIGHT_TIME, HIGHLIGHT_TIME);
+    highlight = Tween(HIGHLIGHT_TIME, HIGHLIGHT_TIME);
   }
 
   let self = {
@@ -336,7 +339,7 @@ function CircleProgress(radius, lineWidth, color, colorWhenFull) {
       }
     },
     start: (runTime, forwards, onProgressDone) => {
-      progress = Tween(forwards ? x => x : x => 1 - x, runTime);
+      progress = Tween(runTime, null, !forwards);
       onDone = onProgressDone;
     },
     stop: () => {
@@ -407,7 +410,7 @@ function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull) {
       }
     },
     start: (runTime, forwards, onProgressDone) => {
-      progress = Tween(forwards ? x => x : x => 1 - x, runTime);
+      progress = Tween(runTime, null, !forwards);
       onDone = onProgressDone;
     },
     stop: () => {
@@ -541,7 +544,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
         moveTo.startY = y;
         moveTo.endX = a;
         moveTo.endY = b;
-        moveTo.progress = Tween(v => v, CIRCLE_MOVE_TIME);
+        moveTo.progress = Tween(CIRCLE_MOVE_TIME);
       } else {
         moveTo = {
           startX: x,
@@ -549,7 +552,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
           startY: y,
           endY: b,
           onDone,
-          progress: Tween(v => v, CIRCLE_MOVE_TIME),
+          progress: Tween(CIRCLE_MOVE_TIME),
         };
       }
     },
