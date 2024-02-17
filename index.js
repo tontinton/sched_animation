@@ -102,11 +102,12 @@ function QueueRect(x, y, height, baseColor, deadline) {
     },
     remove: circle => {
       if (self.empty()) {
-        return;
+        return false;
       }
 
       circles.splice(circles.indexOf(circle), 1);
       updateCircles();
+      return true;
     },
     pop: () => {
       if (self.empty()) {
@@ -183,14 +184,15 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
   }
 
   function onTaskRefill(circle) {
-    blockedQueue.remove(circle);
+    if (!blockedQueue.remove(circle)) {
+      return;
+    }
 
     if (idleQueue.empty() && self.empty()) {
       self.pushAnimated(circle);
     } else {
-      idleQueue.pushAnimated(circle, () => {
-        circle.setState(TaskState.Idle);
-      });
+      circle.setState(TaskState.Idle);
+      idleQueue.pushAnimated(circle);
     }
   }
 
@@ -199,13 +201,13 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
       return;
     }
 
-    const pauseCircle = self.pop();
-    const runCircle = idleQueue.pop();
+    const runningCircle = self.pop();
+    const idleCircle = idleQueue.pop();
 
-    pauseCircle.setState(TaskState.Idle);
-    idleQueue.pushAnimated(pauseCircle);
+    runningCircle.setState(TaskState.Idle);
+    idleQueue.pushAnimated(runningCircle);
 
-    self.pushAnimated(runCircle);
+    self.pushAnimated(idleCircle);
   }
 
   let self = {
@@ -222,7 +224,12 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
       queue.update(delta);
     },
     pushAnimated: circle => {
-      queue.pushAnimated(circle, self.run);
+      queue.pushAnimated(circle, () => {
+        circle.setState(TaskState.Running, onTaskDone.bind(undefined, circle));
+        if (runQuota) {
+          runQuota.start(onRunQuota);
+        }
+      });
     },
     push: circle => {
       queue.push(circle);
@@ -231,13 +238,18 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
       }
     },
     remove: circle => {
-      queue.remove(circle);
-      if (runQuota) {
+      const removed = queue.remove(circle);
+      if (removed && runQuota) {
         runQuota.stop();
       }
+      return removed;
     },
     pop: () => {
-      return queue.pop();
+      const circle = queue.pop();
+      if (circle && runQuota) {
+        runQuota.stop();
+      }
+      return circle;
     },
     peek: () => {
       return queue.peek();
@@ -429,7 +441,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
     setState: (newState, onStateDone) => {
       state = newState;
 
-      if (!circleProgress.isRunning() && (state === TaskState.Running || state === TaskState.Blocked)) {
+      if (state === TaskState.Running || state === TaskState.Blocked) {
         const runState = state === TaskState.Running;
         const time = runState ? runTime : (blockTime * (Math.random() + 0.5));
         circleProgress.start(time, !runState, onStateDone);
