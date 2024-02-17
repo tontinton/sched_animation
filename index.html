@@ -208,6 +208,10 @@
           <input id="number-cpus" type="range" min="1" max="3" value="1">
           <p class="input-text">CPUs</p>
         </div>
+        <div class="input-box">
+          <input id="speed" type="range" min="1" max="5" value="2" style="direction: rtl">
+          <p class="input-text">Speed</p>
+        </div>
         <label class="cr-wrapper">
           <input id="timer-interrupt" type="checkbox"/>
           <div class="cr-input"></div>
@@ -251,6 +255,7 @@
         createApp(
           size,
           element,
+          document.querySelector("#speed").value,
           document.querySelector("#timer-interrupt").checked ? 32 : null,
           document.querySelector("#deadline").checked,
           document.querySelector("#number-cpus").value);
@@ -265,6 +270,7 @@
       run();
       window.addEventListener('resize', run);
       document.querySelector("#number-cpus").addEventListener('input', run);
+      document.querySelector("#speed").addEventListener('input', run);
       document.querySelector("#timer-interrupt").addEventListener('input', run);
       document.querySelector("#deadline").addEventListener('input', run);
     })

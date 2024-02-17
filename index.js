@@ -10,7 +10,7 @@ const QUOTA_CIRCLE_RADIUS = 0.08;
 let QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
 const QUOTA_PROGRESS_EXTRA_SIZE = 0.2;
 const TWO_PI = Math.PI * 2;
-const TIMER_MUL = 2;
+let TIMER_MUL = 2;
 
 function Tween(time, reverseTime, opposite) {
   if (!opposite) {
@@ -586,7 +586,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
   return self;
 }
 
-function createApp(size, element, runQuotaTime, deadline, numCpus) {
+function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
   switch (size) {
     case 'small':
       W = 60;
@@ -604,6 +604,8 @@ function createApp(size, element, runQuotaTime, deadline, numCpus) {
       QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
       break;
   }
+
+  TIMER_MUL = speed;
 
   if (!numCpus) {
     numCpus = 1;
