@@ -8,6 +8,7 @@ let PROGRESS_WIDTH = 8;
 const CIRCLE_MOVE_TIME = 14;
 const QUOTA_CIRCLE_RADIUS = 0.08;
 let QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
+const QUOTA_PROGRESS_EXTRA_SIZE = 0.2;
 const TWO_PI = Math.PI * 2;
 const TIMER_MUL = 2;
 
@@ -141,20 +142,20 @@ function QueueRect(x, y, height, baseColor, deadline) {
   return self;
 }
 
-function RunQuota(app, runTime, x, y) {
-  let circleProgress = CircleProgress(QUOTA_CIRCLE_RADIUS, QUOTA_CIRCLE_PROGRESS_WIDTH, 0x50FA7B, 0xFF5555);
+function RunQuota(app, runTime, x, y, size) {
+  let progress = RoundedRectProgress(size, 4, 0.2, 0xF8F8F2, 0xFF5555);
 
   function update(delta) {
-    circleProgress.update(delta);
-    circleProgress.draw(x, y);
+    progress.update(delta);
+    progress.draw(x, y);
   }
 
   let self = {
     init: container => {
-      circleProgress.init(x, y, container);
+      progress.init(x, y, container);
     },
     start: onDone => {
-      circleProgress.start(runTime, true, () => {
+      progress.start(runTime, true, () => {
         self.stop();
         onDone();
       })
@@ -170,7 +171,15 @@ function RunQuota(app, runTime, x, y) {
 
 function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime) {
   const queue = QueueRect(x, y, height, baseColor, false);
-  const runQuota = runQuotaTime > 0 ? RunQuota(app, runQuotaTime, x + 0.5, y - 0.4) : null;
+  let runQuota = null;
+  if (runQuotaTime > 0) {
+    runQuota = RunQuota(
+      app,
+      runQuotaTime,
+      x - QUOTA_PROGRESS_EXTRA_SIZE / 2,
+      y - QUOTA_PROGRESS_EXTRA_SIZE / 2,
+      1 + QUOTA_PROGRESS_EXTRA_SIZE);
+  }
 
   function onTaskDone(circle) {
     self.remove(circle);
@@ -276,7 +285,7 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
   return self;
 }
 
-function CircleProgress(radius, width, color, colorWhenFull) {
+function CircleProgress(radius, lineWidth, color, colorWhenFull) {
   if (!colorWhenFull) {
     colorWhenFull = color;
   }
@@ -297,8 +306,8 @@ function CircleProgress(radius, width, color, colorWhenFull) {
     },
     draw: (x, y) => {
       edge.clear();
-      edge.lineStyle(width, phase == TWO_PI ? colorWhenFull : color, 1);
-      edge.drawCircle(x * W, y * W, width + radius * W);
+      edge.lineStyle(lineWidth, phase == TWO_PI ? colorWhenFull : color, 1);
+      edge.drawCircle(x * W, y * W, lineWidth + radius * W);
       edge.endFill();
 
       const angleStart = 0 - Math.PI / 2;
@@ -308,7 +317,78 @@ function CircleProgress(radius, width, color, colorWhenFull) {
       mask.lineStyle(1, 0x000000, 1);
       mask.beginFill(0x000000, 1);
       mask.moveTo(x * W, y * W);
-      mask.arc(x * W, y * W, width + radius * W, angleStart, angle, false);
+      mask.arc(x * W, y * W, lineWidth + radius * W, angleStart, angle, false);
+      mask.endFill();
+    },
+    update: delta => {
+      if (!progress) {
+        return;
+      }
+
+      const [value, done] = progress.update(delta);
+      phase = TWO_PI * value;
+
+      if (done) {
+        progress = null;
+        if (onDone) {
+          onDone();
+        }
+      }
+    },
+    start: (runTime, forwards, onProgressDone) => {
+      progress = Tween(forwards ? x => x : x => 1 - x, runTime);
+      onDone = onProgressDone;
+    },
+    stop: () => {
+      progress = null;
+    },
+    setPhase: newPhase => {
+      phase = newPhase;
+    },
+    isRunning: () => {
+      return !!progress;
+    },
+    value: () => {
+      return progress ? progress.value : 1;
+    },
+  };
+
+  return self;
+}
+
+function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull) {
+  if (!colorWhenFull) {
+    colorWhenFull = color;
+  }
+
+  const edge = new PIXI.Graphics();
+  const mask = new PIXI.Graphics();
+  edge.mask = mask;
+
+  let phase = 0;
+  let progress = null;
+  let onDone = null;
+
+  let self = {
+    init: (x, y, container) => {
+      self.draw(x, y);
+      container.addChild(edge);
+      container.addChild(mask);
+    },
+    draw: (x, y) => {
+      edge.clear();
+      edge.lineStyle(lineWidth, phase == TWO_PI ? colorWhenFull : color, 1);
+      edge.drawRoundedRect(x * W, y * W, size * W, size * W, radius * W);
+      edge.endFill();
+
+      const angleStart = 0 - Math.PI / 2;
+      const angle = phase + angleStart;
+
+      mask.clear();
+      mask.lineStyle(1, 0x000000, 1);
+      mask.beginFill(0x000000, 1);
+      mask.moveTo((x + size / 2) * W, (y + size / 2) * W);
+      mask.arc((x + size / 2) * W, (y + size / 2) * W, lineWidth + (size / 1.5) * W, angleStart, angle, false);
       mask.endFill();
     },
     update: delta => {
