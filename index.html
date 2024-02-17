@@ -7,15 +7,220 @@
       overflow-x: hidden;
       overflow-y: hidden;
     }
+
     #app {
       width: 100vw;
       height: 100vh;
       background: #242631;
     }
+    .input-box {
+      display: flex;
+    }
+    .input-text {
+      color: #F8F8F2;
+      margin-left: 10px;
+    }
+
+    input[type=range] {
+      height: 30px;
+      -webkit-appearance: none;
+      margin: 10px 0;
+      width: 100%;
+      background-color: transparent;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 10px;
+      cursor: pointer;
+      animate: 0.2s;
+      background: #BD93F9;
+      border-radius: 5px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      height: 16px;
+      width: 16px;
+      border-radius: 16px;
+      background: #F8F8F2;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -7px;
+    }
+    input[type=range]:focus::-webkit-slider-runnable-track {
+      background: #BD93F9;
+    }
+    input[type=range]::-moz-range-track {
+      width: 100%;
+      height: 10px;
+      cursor: pointer;
+      animate: 0.2s;
+      background: #BD93F9;
+      border-radius: 5px;
+    }
+    input[type=range]::-moz-range-thumb {
+      height: 16px;
+      width: 16px;
+      border-radius: 16px;
+      background: #F8F8F2;
+      cursor: pointer;
+    }
+    input[type=range]::-ms-track {
+      width: 100%;
+      height: 10px;
+      cursor: pointer;
+      animate: 0.2s;
+    }
+    input[type=range]::-ms-fill-lower {
+      background: #BD93F9;
+      border-radius: 10px;
+    }
+    input[type=range]::-ms-fill-upper {
+      background: #BD93F9;
+    }
+    input[type=range]::-ms-thumb {
+      margin-top: 1px;
+      height: 16px;
+      width: 16px;
+      border-radius: 16px;
+      background: #F8F8F2;
+      cursor: pointer;
+    }
+    input[type=range]:focus::-ms-fill-lower {
+      background: #BD93F9;
+    }
+    input[type=range]:focus::-ms-fill-upper {
+      background: #BD93F9;
+    }
+
+    .cr-wrapper *,
+    .cr-wrapper *::before,
+    .cr-wrapper *::after {
+      box-sizing: content-box !important;
+    }
+
+    .cr-wrapper input {
+      position: absolute;
+      z-index: -1;
+      opacity: 0;
+    }
+
+    .cr-wrapper span {
+      color: #F8F8F2;
+    }
+
+    .cr-wrapper {
+      display: table;
+      position: relative;
+      padding-left: 30px;
+      cursor: pointer;
+      margin-bottom: 0px;
+    }
+
+    .cr-wrapper input[type="checkbox"] ~ .cr-input {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      height: 20px;
+      width: 20px;
+      background: #44475A;
+      transition: background 250ms;
+      border-radius: 4px;
+      transform: translate(0, -50%);
+    }
+
+    .cr-wrapper input[type="radio"] ~ .cr-input {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      height: 20px;
+      width: 20px;
+      background: #44475A;
+      transition: background 250ms;
+      border-radius: 20px;
+      transform: translate(0, -50%);
+    }
+
+    .cr-wrapper input[type="checkbox"] ~ .cr-input::after {
+      content: "";
+      position: absolute;
+      display: none;
+      left: 4px;
+      top: 4px;
+      width: 12px;
+      height: 12px;
+      transition: background 250ms;
+      background-color: #FFFFFF;
+      clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    }
+
+    .cr-wrapper input[type="radio"] ~ .cr-input::after {
+      content: "";
+      position: absolute;
+      display: none;
+      left: 4px;
+      top: 4px;
+      width: 12px;
+      height: 12px;
+      border-radius: 20px;
+      background: #FFFFFF;
+      transition: background 250ms;
+    }
+
+    .cr-wrapper input:checked ~ .cr-input::after {
+      display: block;
+    }
+
+    .cr-wrapper input[type="checkbox"]:checked ~ .cr-input {
+      background: #BD93F9;
+    }
+
+    .cr-wrapper input[type="radio"]:checked ~ .cr-input {
+      background: #BD93F9;
+    }
+
+    .cr-wrapper input[type="checkbox"]:disabled ~ .cr-input,
+    .cr-wrapper input[type="radio"]:disabled ~ .cr-input {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .cr-wrapper input[type="checkbox"]:disabled ~ span,
+    .cr-wrapper input[type="radio"]:disabled ~ span {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .cr-wrapper input[type="checkbox"]:disabled ~ .cr-input::after {
+      background: #FFFFFF;
+    }
+
+    .cr-wrapper input[type="radio"]:disabled ~ .cr-input::after {
+      background: #FFFFFF;
+    }
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="block">
+      <div style="position: absolute; margin-left: 20px">
+        <div class="input-box">
+          <input id="number-cpus" type="range" min="1" max="3" value="1">
+          <p class="input-text">CPUs</p>
+        </div>
+        <label class="cr-wrapper">
+          <input id="timer-interrupt" type="checkbox"/>
+          <div class="cr-input"></div>
+          <span>Timer interrupt</span>
+        </label>
+        <label class="cr-wrapper" style="margin-top: 18px">
+          <input id="deadline" type="checkbox"/>
+          <div class="cr-input"></div>
+          <span>Deadline</span>
+        </label>
+      </div>
+      <div id="app"></div>
+    </div>
 
     <script>
     const loadScript = src => new Promise((resolve, reject) => {
@@ -31,7 +236,7 @@
     });
 
     let size = null;
-    function run() {
+    function run(event) {
       let newSize = 'big';
       if (window.innerWidth < 400) {
         newSize = 'small';
@@ -39,11 +244,16 @@
         newSize = 'medium';
       }
 
-      if (size === null || newSize !== size) {
+      if (event || size === null || newSize !== size) {
         const element = document.querySelector("#app");
         element.innerHTML = "";
         size = newSize;
-        createApp(size, element, 32, true, 2);
+        createApp(
+          size,
+          element,
+          document.querySelector("#timer-interrupt").checked ? 32 : null,
+          document.querySelector("#deadline").checked,
+          document.querySelector("#number-cpus").value);
       }
     };
 
@@ -54,6 +264,9 @@
     ]).then(() => {
       run();
       window.addEventListener('resize', run);
+      document.querySelector("#number-cpus").addEventListener('input', run);
+      document.querySelector("#timer-interrupt").addEventListener('input', run);
+      document.querySelector("#deadline").addEventListener('input', run);
     })
     </script>
   </body>
