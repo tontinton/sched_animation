@@ -408,18 +408,15 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
       if (moveTo) {
         const [value, done] = moveTo.progress.update(delta);
 
-        if (done) {
-          x = moveTo.endX;
-          y = moveTo.endY;
+        x = moveTo.startX + (moveTo.endX - moveTo.startX) * value;
+        y = moveTo.startY + (moveTo.endY - moveTo.startY) * value;
 
+        if (done) {
           const onDone = moveTo.onDone;
           moveTo = null;
           if (onDone) {
             onDone();
           }
-        } else {
-          x = moveTo.startX + (moveTo.endX - moveTo.startX) * value;
-          y = moveTo.startY + (moveTo.endY - moveTo.startY) * value;
         }
 
         invalidate = true;
@@ -444,12 +441,15 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
           moveTo.onDone = onDone;
         }
 
-        const ratioX = (moveTo.endX - x) / (moveTo.endX - moveTo.startX);
-        const ratioY = (moveTo.endY - y) / (moveTo.endY - moveTo.startY);
-        moveTo.startX = ratioX ? a + (x - a) * (1 / ratioX) : a;
-        moveTo.startY = ratioY ? b + (y - b) * (1 / ratioY) : b;
+        if (a == moveTo.endX && b == moveTo.endY) {
+          return;
+        }
+
+        moveTo.startX = x;
+        moveTo.startY = y;
         moveTo.endX = a;
         moveTo.endY = b;
+        moveTo.progress = Tween(v => v, CIRCLE_MOVE_TIME);
       } else {
         moveTo = {
           startX: x,
