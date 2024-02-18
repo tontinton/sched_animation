@@ -10,13 +10,12 @@ const QUOTA_CIRCLE_RADIUS = 0.08;
 let QUOTA_CIRCLE_PROGRESS_WIDTH = 12;
 const QUOTA_PROGRESS_EXTRA_SIZE = 0.2;
 const TWO_PI = Math.PI * 2;
-let TIMER_MUL = 2;
 
-function Tween(time, reverseTime, opposite) {
+function Tween(speed, time, reverseTime, opposite) {
   if (!opposite) {
     opposite = false;
   }
-  let step = 1 / (time * TIMER_MUL);
+  let step = 1 / (time * speed);
   let value = 0; // up to 1 - meaning done.
   let reverse = false;
   return {
@@ -29,7 +28,7 @@ function Tween(time, reverseTime, opposite) {
       if (value === 1 && reverseTime) {
         reverse = true;
         end = false;
-        step = 1 / (reverseTime * TIMER_MUL);
+        step = 1 / (reverseTime * speed);
       }
 
       return [opposite ? 1 - value : value, end];
@@ -37,7 +36,7 @@ function Tween(time, reverseTime, opposite) {
   };
 }
 
-function QueueRect(x, y, height, baseColor, deadline) {
+function QueueRect(x, y, height, baseColor, speed, deadline) {
   const graphics = new PIXI.Graphics();
   let color = baseColor;
   let highlight = null;
@@ -52,7 +51,7 @@ function QueueRect(x, y, height, baseColor, deadline) {
   }
 
   function startHighlight() {
-    highlight = Tween(HIGHLIGHT_TIME, HIGHLIGHT_TIME);
+    highlight = Tween(speed, HIGHLIGHT_TIME, HIGHLIGHT_TIME);
   }
 
   let self = {
@@ -145,8 +144,8 @@ function QueueRect(x, y, height, baseColor, deadline) {
   return self;
 }
 
-function RunQuota(app, runTime, x, y, size) {
-  let progress = RoundedRectProgress(size, 4, 0.2, 0xF8F8F2, 0xFF5555);
+function RunQuota(app, runTime, x, y, size, speed) {
+  let progress = RoundedRectProgress(size, 4, 0.2, 0xF8F8F2, 0xFF5555, speed);
 
   function update(delta) {
     progress.update(delta);
@@ -172,8 +171,8 @@ function RunQuota(app, runTime, x, y, size) {
   return self;
 }
 
-function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime) {
-  const queue = QueueRect(x, y, height, baseColor, false);
+function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime, speed) {
+  const queue = QueueRect(x, y, height, baseColor, speed);
   let runQuota = null;
   if (runQuotaTime > 0) {
     runQuota = RunQuota(
@@ -181,7 +180,8 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
       runQuotaTime,
       x - QUOTA_PROGRESS_EXTRA_SIZE / 2,
       y - QUOTA_PROGRESS_EXTRA_SIZE / 2,
-      1 + QUOTA_PROGRESS_EXTRA_SIZE);
+      1 + QUOTA_PROGRESS_EXTRA_SIZE,
+      speed);
   }
 
   function onTaskDone(circle) {
@@ -288,11 +288,7 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
   return self;
 }
 
-function CircleProgress(radius, lineWidth, color, colorWhenFull) {
-  if (!colorWhenFull) {
-    colorWhenFull = color;
-  }
-
+function CircleProgress(radius, lineWidth, color, speed) {
   const edge = new PIXI.Graphics();
   const mask = new PIXI.Graphics();
   edge.mask = mask;
@@ -309,7 +305,7 @@ function CircleProgress(radius, lineWidth, color, colorWhenFull) {
     },
     draw: (x, y) => {
       edge.clear();
-      edge.lineStyle(lineWidth, phase == TWO_PI ? colorWhenFull : color, 1);
+      edge.lineStyle(lineWidth, color, 1);
       edge.drawCircle(x * W, y * W, lineWidth + radius * W);
       edge.endFill();
 
@@ -339,7 +335,7 @@ function CircleProgress(radius, lineWidth, color, colorWhenFull) {
       }
     },
     start: (runTime, forwards, onProgressDone) => {
-      progress = Tween(runTime, null, !forwards);
+      progress = Tween(speed, runTime, null, !forwards);
       onDone = onProgressDone;
     },
     stop: () => {
@@ -359,7 +355,7 @@ function CircleProgress(radius, lineWidth, color, colorWhenFull) {
   return self;
 }
 
-function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull) {
+function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull, speed) {
   if (!colorWhenFull) {
     colorWhenFull = color;
   }
@@ -410,7 +406,7 @@ function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull) {
       }
     },
     start: (runTime, forwards, onProgressDone) => {
-      progress = Tween(runTime, null, !forwards);
+      progress = Tween(speed, runTime, null, !forwards);
       onDone = onProgressDone;
     },
     stop: () => {
@@ -436,15 +432,15 @@ const TaskState = Object.freeze({
 	Running: Symbol("running"),
 })
 
-function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
+function TaskCircle(startState, color, runTime, blockTime, deadlineTime, speed) {
   const graphics = new PIXI.Graphics();
   let x = 0;
   let y = 0;
 
-  let circleProgress = CircleProgress(RADIUS, PROGRESS_WIDTH, 0xF8F8F2);
+  let circleProgress = CircleProgress(RADIUS, PROGRESS_WIDTH, 0xF8F8F2, speed);
   let state = startState;
   let moveTo = null;
-  let deadlineCircleProgress = deadlineTime > 0 ? CircleProgress(DEADLINE_RADIUS, PROGRESS_WIDTH, 0xb7fc88) : null;
+  let deadlineCircleProgress = deadlineTime > 0 ? CircleProgress(DEADLINE_RADIUS, PROGRESS_WIDTH, 0xb7fc88, speed) : null;
 
   switch (state) {
     case TaskState.Running:
@@ -544,7 +540,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
         moveTo.startY = y;
         moveTo.endX = a;
         moveTo.endY = b;
-        moveTo.progress = Tween(CIRCLE_MOVE_TIME);
+        moveTo.progress = Tween(speed, CIRCLE_MOVE_TIME);
       } else {
         moveTo = {
           startX: x,
@@ -552,7 +548,7 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime) {
           startY: y,
           endY: b,
           onDone,
-          progress: Tween(CIRCLE_MOVE_TIME),
+          progress: Tween(speed, CIRCLE_MOVE_TIME),
         };
       }
     },
@@ -605,32 +601,30 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
       break;
   }
 
-  TIMER_MUL = speed;
-
   if (!numCpus) {
     numCpus = 1;
   }
 
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
-  const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9, deadline);
-  const rightQueue = QueueRect(size === 'big' ? 4 : 3, 0, HEIGHT, 0x6272A4);
+  const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9, speed, deadline);
+  const rightQueue = QueueRect(size === 'big' ? 4 : 3, 0, HEIGHT, 0x6272A4, speed);
 
   const cpus = []
   for (let i = 0; i < numCpus; i++) {
     const offset = i * HEIGHT / numCpus;
     const step = HEIGHT / numCpus;
     const y = offset + step / 2;
-    const cpu = Cpu(app, leftQueue, rightQueue, size === 'big' ? 2 : 1.5, y - 0.5, 1, 0x50FA7B, runQuotaTime);
+    const cpu = Cpu(app, leftQueue, rightQueue, size === 'big' ? 2 : 1.5, y - 0.5, 1, 0x50FA7B, runQuotaTime, speed);
     cpus.push(cpu);
   }
 
   const circles = [
-    TaskCircle(TaskState.Running, 0xFF5555, 84, 30, deadline ? 440 : 0),
-    TaskCircle(TaskState.Idle, 0x8BE9FD, 77, 55, deadline ? 430 : 0),
-    TaskCircle(TaskState.Idle, 0xFF79C6, deadline ? 9 : 29, deadline ? 13 : 27, deadline ? 50 : 0),
-    TaskCircle(TaskState.Idle, 0xFFB86C, 39, 70, deadline ? 410 : 0),
-    TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, deadline ? 500 : 0),
+    TaskCircle(TaskState.Running, 0xFF5555, 84, 30, deadline ? 440 : 0, speed),
+    TaskCircle(TaskState.Idle, 0x8BE9FD, 77, 55, deadline ? 430 : 0, speed),
+    TaskCircle(TaskState.Idle, 0xFF79C6, deadline ? 9 : 29, deadline ? 13 : 27, deadline ? 50 : 0, speed),
+    TaskCircle(TaskState.Idle, 0xFFB86C, 39, 70, deadline ? 410 : 0, speed),
+    TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, deadline ? 500 : 0, speed),
   ];
 
   cpus[0].push(circles[0]);
