@@ -669,6 +669,13 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
   app.renderer.on('resize', layout);
 
   element.appendChild(app.view);
+
+  return {
+    stop: () => {
+      app.stop();
+      app.destroy(true);
+    },
+  };
 }
 
 window.createApp = createApp;

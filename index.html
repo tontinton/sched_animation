@@ -240,6 +240,7 @@
     });
 
     let size = null;
+    let app = null;
     function run(event) {
       let newSize = 'big';
       if (window.innerWidth < 400) {
@@ -249,12 +250,13 @@
       }
 
       if (event || size === null || newSize !== size) {
-        const element = document.querySelector("#app");
-        element.innerHTML = "";
+        if (app) {
+          app.stop();
+        }
         size = newSize;
-        createApp(
+        app = createApp(
           size,
-          element,
+          document.querySelector("#app"),
           document.querySelector("#speed").value,
           document.querySelector("#timer-interrupt").checked ? 32 : null,
           document.querySelector("#deadline").checked,
