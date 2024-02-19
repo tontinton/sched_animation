@@ -684,10 +684,38 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
 
   element.appendChild(app.view);
 
-  PIXI.Graphics.curves.maxSegments = 32;
+  let f = () => {
+    let bottomOfScreen = window.scrollY + window.innerHeight + 50;
+    let topOfScreen = window.scrollY - 50;
+    let bottomOfElement = element.offsetTop + element.offsetHeight;
+    let topOfElement = element.offsetTop;
+
+    let isVisible = bottomOfScreen > topOfElement &&
+        topOfScreen < bottomOfElement;
+
+    if (!app.ticker.started && isVisible) {
+        app.ticker.start();
+        app.start();
+        return;
+    }
+
+    if (app.ticker.started && !isVisible) {
+        app.ticker.stop();
+        app.stop();
+        return;
+    }
+  }
+
+  window.addEventListener("scroll", f);
+  window.addEventListener("focus", f);
+  window.addEventListener("blur", f);
+  f();
 
   return {
     stop: () => {
+      window.removeEventListener("scroll", f);
+      window.removeEventListener("focus", f);
+      window.removeEventListener("blur", f);
       app.stop();
       app.destroy(true);
     },
