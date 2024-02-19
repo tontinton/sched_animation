@@ -77,8 +77,11 @@ function QueueRect(x, y, height, baseColor, speed, deadline) {
       const g = Math.min(((baseColor & 0x00FF00) >> 8) + Math.round(HIGHLIGHT * value), 0xFF) << 8;
       const b = Math.min((baseColor & 0x0000FF) + Math.round(HIGHLIGHT * value), 0xFF);
 
+      let oldColor = color;
       color = r + g + b;
-      self.draw();
+      if (color !== oldColor) {
+        self.draw();
+      }
 
       if (done) {
         highlight = null;
@@ -299,15 +302,16 @@ function CircleProgress(radius, lineWidth, color, speed) {
 
   let self = {
     init: (x, y, container) => {
+      edge.lineStyle(lineWidth, color, 1);
+      edge.drawCircle(x * W, y * W, lineWidth + radius * W);
+      edge.endFill();
       self.draw(x, y);
       container.addChild(edge);
       container.addChild(mask);
     },
     draw: (x, y) => {
-      edge.clear();
-      edge.lineStyle(lineWidth, color, 1);
-      edge.drawCircle(x * W, y * W, lineWidth + radius * W);
-      edge.endFill();
+      edge.position.x = x * W;
+      edge.position.y = y * W;
 
       const angleStart = 0 - Math.PI / 2;
       const angle = phase + angleStart;
@@ -315,8 +319,8 @@ function CircleProgress(radius, lineWidth, color, speed) {
       mask.clear();
       mask.lineStyle(1, 0x000000, 1);
       mask.beginFill(0x000000, 1);
-      mask.moveTo(x * W, y * W);
-      mask.arc(x * W, y * W, lineWidth + radius * W, angleStart, angle, false);
+      mask.moveTo((x + RADIUS) * W, (y + RADIUS) * W);
+      mask.arc((x + RADIUS) * W, (y + RADIUS) * W, lineWidth + radius * W, angleStart, angle, false);
       mask.endFill();
     },
     update: delta => {
@@ -370,16 +374,14 @@ function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull, spee
 
   let self = {
     init: (x, y, container) => {
+      edge.lineStyle(lineWidth, phase == TWO_PI ? colorWhenFull : color, 1);
+      edge.drawRoundedRect(x * W, y * W, size * W, size * W, radius * W);
+      edge.endFill();
       self.draw(x, y);
       container.addChild(edge);
       container.addChild(mask);
     },
     draw: (x, y) => {
-      edge.clear();
-      edge.lineStyle(lineWidth, phase == TWO_PI ? colorWhenFull : color, 1);
-      edge.drawRoundedRect(x * W, y * W, size * W, size * W, radius * W);
-      edge.endFill();
-
       const angleStart = 0 - Math.PI / 2;
       const angle = phase + angleStart;
 
@@ -465,22 +467,22 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime, speed) 
 
   let self = {
     init: (container) => {
-      self.draw();
-      circleProgress.init(x + RADIUS * 2, y + RADIUS * 2, container);
+      graphics.beginFill(color, 1);
+      graphics.drawCircle((x + RADIUS) * W, (y + RADIUS) * W, RADIUS * W);
+      graphics.endFill();
+      circleProgress.init(x + RADIUS, y + RADIUS, container);
       if (deadlineCircleProgress) {
-        deadlineCircleProgress.init(x + RADIUS * 2, y + RADIUS * 2, container);
+        deadlineCircleProgress.init(x + RADIUS, y + RADIUS, container);
       }
       container.addChild(graphics);
     },
     draw: () => {
-      graphics.clear();
-      graphics.beginFill(color, 1);
-      graphics.drawCircle((x + RADIUS * 2) * W, (y + RADIUS * 2) * W, RADIUS * W);
-      graphics.endFill();
+      graphics.position.x = (x + RADIUS) * W;
+      graphics.position.y = (y + RADIUS) * W;
 
-      circleProgress.draw(x + RADIUS * 2, y + RADIUS * 2);
+      circleProgress.draw(x + RADIUS, y + RADIUS);
       if (deadlineCircleProgress) {
-        deadlineCircleProgress.draw(x + RADIUS * 2, y + RADIUS * 2);
+        deadlineCircleProgress.draw(x + RADIUS, y + RADIUS);
       }
     },
     update: delta => {
@@ -607,15 +609,15 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
 
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
 
-  const leftQueue = QueueRect(0, 0, HEIGHT, 0xBD93F9, speed, deadline);
-  const rightQueue = QueueRect(size === 'big' ? 4 : 3, 0, HEIGHT, 0x6272A4, speed);
+  const leftQueue = QueueRect(size === 'big' ? -2.5 : -2, -2, HEIGHT, 0xBD93F9, speed, deadline);
+  const rightQueue = QueueRect(size === 'big' ? 1.5 : 1, -2, HEIGHT, 0x6272A4, speed);
 
   const cpus = []
   for (let i = 0; i < numCpus; i++) {
     const offset = i * HEIGHT / numCpus;
     const step = HEIGHT / numCpus;
     const y = offset + step / 2;
-    const cpu = Cpu(app, leftQueue, rightQueue, size === 'big' ? 2 : 1.5, y - 0.5, 1, 0x50FA7B, runQuotaTime, speed);
+    const cpu = Cpu(app, leftQueue, rightQueue, -0.5, y - 2.5, 1, 0x50FA7B, runQuotaTime, speed);
     cpus.push(cpu);
   }
 
@@ -627,18 +629,8 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
     TaskCircle(TaskState.Idle, 0xF1FA8C, 47, 35, deadline ? 500 : 0, speed),
   ];
 
-  cpus[0].push(circles[0]);
-  for (let i = 1; i < circles.length; i++) {
-    leftQueue.push(circles[i]);
-  }
-  const drawables = [leftQueue, ...cpus, rightQueue, ...circles];
-
   const container = new PIXI.Container();
   app.stage.addChild(container);
-
-  for (const drawable of drawables) {
-    drawable.init(container);
-  }
 
   function layout(width, height) {
     container.x = width / 2;
@@ -649,6 +641,17 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
 
   container.pivot.x = container.width / 2;
   container.pivot.y = container.height / 2;
+
+  const drawables = [leftQueue, ...cpus, rightQueue, ...circles];
+
+  for (const drawable of drawables) {
+    drawable.init(container);
+  }
+
+  cpus[0].push(circles[0]);
+  for (let i = 1; i < circles.length; i++) {
+    leftQueue.push(circles[i]);
+  }
 
   app.ticker.add(delta => {
     for (const drawable of drawables) {

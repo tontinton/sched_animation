@@ -270,7 +270,9 @@
       waitForDocumentLoad(),
     ]).then(() => {
       run();
-      window.addEventListener('resize', run);
+      window.addEventListener('resize', () => {
+        run();
+      });
       document.querySelector("#number-cpus").addEventListener('input', run);
       document.querySelector("#speed").addEventListener('input', run);
       document.querySelector("#timer-interrupt").addEventListener('input', run);
