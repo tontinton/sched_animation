@@ -297,6 +297,7 @@ function CircleProgress(radius, lineWidth, color, speed) {
   edge.mask = mask;
 
   let phase = 0;
+  let previousPhase = null;
   let progress = null;
   let onDone = null;
 
@@ -312,16 +313,22 @@ function CircleProgress(radius, lineWidth, color, speed) {
     draw: (x, y) => {
       edge.position.x = x * W;
       edge.position.y = y * W;
+      mask.position.x = x * W;
+      mask.position.y = y * W;
 
-      const angleStart = 0 - Math.PI / 2;
-      const angle = phase + angleStart;
+      if (previousPhase !== phase) {
+        const angleStart = 0 - Math.PI / 2;
+        const angle = phase + angleStart;
 
-      mask.clear();
-      mask.lineStyle(1, 0x000000, 1);
-      mask.beginFill(0x000000, 1);
-      mask.moveTo((x + RADIUS) * W, (y + RADIUS) * W);
-      mask.arc((x + RADIUS) * W, (y + RADIUS) * W, lineWidth + radius * W, angleStart, angle, false);
-      mask.endFill();
+        mask.clear();
+        mask.lineStyle(1, 0x000000, 1);
+        mask.beginFill(0x000000, 1);
+        mask.moveTo(RADIUS * W, RADIUS * W);
+        mask.arc(RADIUS * W, RADIUS * W, lineWidth + radius * W, angleStart, angle, false);
+        mask.endFill();
+      }
+
+      previousPhase = phase;
     },
     update: delta => {
       if (!progress) {
@@ -369,6 +376,7 @@ function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull, spee
   edge.mask = mask;
 
   let phase = 0;
+  let previousPhase = null;
   let progress = null;
   let onDone = null;
 
@@ -382,15 +390,22 @@ function RoundedRectProgress(size, lineWidth, radius, color, colorWhenFull, spee
       container.addChild(mask);
     },
     draw: (x, y) => {
-      const angleStart = 0 - Math.PI / 2;
-      const angle = phase + angleStart;
+      mask.position.x = x * W;
+      mask.position.y = y * W;
 
-      mask.clear();
-      mask.lineStyle(1, 0x000000, 1);
-      mask.beginFill(0x000000, 1);
-      mask.moveTo((x + size / 2) * W, (y + size / 2) * W);
-      mask.arc((x + size / 2) * W, (y + size / 2) * W, lineWidth + (size / 1.5) * W, angleStart, angle, false);
-      mask.endFill();
+      if (previousPhase !== phase) {
+        const angleStart = 0 - Math.PI / 2;
+        const angle = phase + angleStart;
+
+        mask.clear();
+        mask.lineStyle(1, 0x000000, 1);
+        mask.beginFill(0x000000, 1);
+        mask.moveTo((size / 2) * W, (size / 2) * W);
+        mask.arc((size / 2) * W, (size / 2) * W, lineWidth + (size / 1.5) * W, angleStart, angle, false);
+        mask.endFill();
+      }
+
+      previousPhase = phase;
     },
     update: delta => {
       if (!progress) {
@@ -436,6 +451,8 @@ const TaskState = Object.freeze({
 
 function TaskCircle(startState, color, runTime, blockTime, deadlineTime, speed) {
   const graphics = new PIXI.Graphics();
+  graphics.cacheAsBitmap = true;
+  graphics.epsilon = 100;
   let x = 0;
   let y = 0;
 
@@ -666,6 +683,8 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
   app.renderer.on('resize', layout);
 
   element.appendChild(app.view);
+
+  PIXI.Graphics.curves.maxSegments = 32;
 
   return {
     stop: () => {
