@@ -19,7 +19,6 @@ function Tween(speed, time, reverseTime, opposite) {
   let value = 0; // up to 1 - meaning done.
   let reverse = false;
   return {
-    value,
     update: delta => {
       const nextValue = value + (reverse ? -step : step) * delta;
       value = Math.max(Math.min(nextValue, 1), 0);
@@ -33,6 +32,9 @@ function Tween(speed, time, reverseTime, opposite) {
 
       return [opposite ? 1 - value : value, end];
     },
+    value: () => {
+      return value;
+    }
   };
 }
 
@@ -359,7 +361,7 @@ function CircleProgress(radius, lineWidth, color, speed) {
       return !!progress;
     },
     value: () => {
-      return progress ? progress.value : 1;
+      return self.isRunning() ? progress.value() : 1;
     },
   };
 
