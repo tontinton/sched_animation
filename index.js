@@ -627,6 +627,7 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
   }
 
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
+  app.renderer.view.style.touchAction = 'auto';
 
   const leftQueue = QueueRect(size === 'big' ? -2.5 : -2, -2, HEIGHT, 0xBD93F9, speed, deadline);
   const rightQueue = QueueRect(size === 'big' ? 1.5 : 1, -2, HEIGHT, 0x6272A4, speed);
