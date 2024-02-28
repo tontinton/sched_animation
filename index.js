@@ -351,6 +351,9 @@ function CircleProgress(radius, lineWidth, color, speed) {
       progress = Tween(speed, runTime, null, !forwards);
       onDone = onProgressDone;
     },
+    setOnDone: onProgressDone => {
+      onDone = onProgressDone;
+    },
     stop: () => {
       progress = null;
     },
@@ -541,7 +544,9 @@ function TaskCircle(startState, color, runTime, blockTime, deadlineTime, speed) 
     setState: (newState, onStateDone) => {
       state = newState;
 
-      if (state === TaskState.Running || state === TaskState.Blocked) {
+      if (circleProgress.isRunning()) {
+        circleProgress.setOnDone(onStateDone);
+      } else if (state === TaskState.Running || state === TaskState.Blocked) {
         const runState = state === TaskState.Running;
         const time = runState ? runTime : (blockTime * (Math.random() + 0.5));
         circleProgress.start(time, !runState, onStateDone);
