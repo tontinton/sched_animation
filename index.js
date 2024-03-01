@@ -176,7 +176,7 @@ function RunQuota(app, runTime, x, y, size, speed) {
   return self;
 }
 
-function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime, speed) {
+function Cpu(app, idleQueue, blockedQueue, onTaskRefill, x, y, height, baseColor, runQuotaTime, speed) {
   const queue = QueueRect(x, y, height, baseColor, speed);
   let runQuota = null;
   if (runQuotaTime > 0) {
@@ -197,19 +197,6 @@ function Cpu(app, idleQueue, blockedQueue, x, y, height, baseColor, runQuotaTime
 
     if (!idleQueue.empty()) {
       self.pushAnimated(idleQueue.pop());
-    }
-  }
-
-  function onTaskRefill(circle) {
-    if (!blockedQueue.remove(circle)) {
-      return;
-    }
-
-    if (idleQueue.empty() && self.empty()) {
-      self.pushAnimated(circle);
-    } else {
-      circle.setState(TaskState.Idle);
-      idleQueue.pushAnimated(circle);
     }
   }
 
@@ -634,15 +621,34 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
   const app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: element, antialias: true });
   app.renderer.view.style.touchAction = 'auto';
 
-  const leftQueue = QueueRect(size === 'big' ? -2.5 : -2, -2, HEIGHT, 0xBD93F9, speed, deadline);
-  const rightQueue = QueueRect(size === 'big' ? 1.5 : 1, -2, HEIGHT, 0x6272A4, speed);
+  const idleQueue = QueueRect(size === 'big' ? -2.5 : -2, -2, HEIGHT, 0xBD93F9, speed, deadline);
+  const blockedQueue = QueueRect(size === 'big' ? 1.5 : 1, -2, HEIGHT, 0x6272A4, speed);
 
   const cpus = []
+
+  function onTaskRefill(circle) {
+    if (!blockedQueue.remove(circle)) {
+      return;
+    }
+
+    if (idleQueue.empty()) {
+      for (const cpu of cpus) {
+        if (cpu.empty()) {
+          cpu.pushAnimated(circle);
+          return;
+        }
+      }
+    }
+
+    circle.setState(TaskState.Idle);
+    idleQueue.pushAnimated(circle);
+  }
+
   for (let i = 0; i < numCpus; i++) {
     const offset = i * HEIGHT / numCpus;
     const step = HEIGHT / numCpus;
     const y = offset + step / 2;
-    const cpu = Cpu(app, leftQueue, rightQueue, -0.5, y - 2.5, 1, 0x50FA7B, runQuotaTime, speed);
+    const cpu = Cpu(app, idleQueue, blockedQueue, onTaskRefill, -0.5, y - 2.5, 1, 0x50FA7B, runQuotaTime, speed);
     cpus.push(cpu);
   }
 
@@ -667,7 +673,7 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
   container.pivot.x = container.width / 2;
   container.pivot.y = container.height / 2;
 
-  const drawables = [leftQueue, ...cpus, rightQueue, ...circles];
+  const drawables = [idleQueue, ...cpus, blockedQueue, ...circles];
 
   for (const drawable of drawables) {
     drawable.init(container);
@@ -675,7 +681,7 @@ function createApp(size, element, speed, runQuotaTime, deadline, numCpus) {
 
   cpus[0].push(circles[0]);
   for (let i = 1; i < circles.length; i++) {
-    leftQueue.push(circles[i]);
+    idleQueue.push(circles[i]);
   }
 
   app.ticker.add(delta => {
